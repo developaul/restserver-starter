@@ -1,60 +1,124 @@
+const bcryptjs = require('bcryptjs');
 const { request, response } = require('express');
 
-const getUsers = (req = request, res = response) => {
+const User = require('../models/user');
 
-  // Query params
-  const { name, apikey } = req.query;
+const getUsers = async (req = request, res = response) => {
 
-  res.json({
-    ok: true,
-    msg: 'get API - controller',
-    name,
-    apikey
-  });
+  const { limit = 5, startAfter = 0 } = req.query;
+  const query = { status: true };
+
+  try {
+
+    const [total, users] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query)
+        .skip(Number(startAfter))
+        .limit(Number(limit))
+    ]);
+
+    res.json({
+      total,
+      users
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      ok: false,
+      msg: 'Por favor hable con el administrador'
+    });
+
+  }
 
 };
 
-const postUsers = (req = request, res = response) => {
+const postUsers = async (req = request, res = response) => {
 
-  const { name, age } = req.body;
+  const { name, email, password, role } = req.body;
 
-  res.json({
-    ok: true,
-    msg: 'post API - controller',
-    name,
-    age
-  });
+  try {
+
+    const user = new User({ name, email, password, role });
+
+    const salt = bcryptjs.genSaltSync(10);
+    user.password = bcryptjs.hashSync(user.password, salt);
+
+    await user.save();
+
+    res.status(201).json({
+      ok: true,
+      msg: 'post API - controller',
+      user
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      ok: false,
+      msg: 'Por favor hable con el administrador'
+    });
+
+  }
 
 };
 
-const putUsers = (req = request, res = response) => {
+const putUsers = async (req = request, res = response) => {
 
-  // Parametros segmentados
+  const { id } = req.params;
+  const { _id, password, google, email, ...rest } = req.body;
+
+  if (password) {
+    const salt = bcryptjs.genSaltSync(10);
+    rest.password = bcryptjs.hashSync(password, salt);
+  }
+
+  try {
+
+    const user = await User.findByIdAndUpdate(id, rest);
+
+    res.json({
+      ok: true,
+      user
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      ok: false,
+      msg: 'Por favor hable con el administrador'
+    });
+
+  }
+
+};
+
+const deleteUsers = async (req = request, res = response) => {
+
   const { id } = req.params;
 
-  res.json({
-    ok: true,
-    msg: 'put API - controller',
-    id
-  });
+  try {
 
-};
+    const user = await User.findByIdAndUpdate(id, { status: false });
 
-const deleteUsers = (req = request, res = response) => {
+    res.json(user);
 
-  res.json({
-    ok: true,
-    msg: 'delete API - controller'
-  });
+  } catch (err) {
 
-};
+    console.error(err);
 
-const patchUsers = (req = request, res = response) => {
+    res.status(500).json({
+      ok: false,
+      msg: 'Por favor hable con el administrador'
+    });
 
-  res.json({
-    ok: true,
-    msg: 'patch API - controller'
-  });
+  }
 
 };
 
@@ -62,6 +126,5 @@ module.exports = {
   getUsers,
   postUsers,
   putUsers,
-  patchUsers,
   deleteUsers
 }
